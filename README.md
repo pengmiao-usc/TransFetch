@@ -10,6 +10,8 @@ Fine-Grained Address Segmentation for Attention-Based Variable-Degree Prefetchin
 
 cd to root dir
 
+
+
 `./run_train.sh`
 
 ## Run Simulation
