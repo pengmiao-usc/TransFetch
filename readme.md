@@ -10,3 +10,4 @@ cd root
 
 ## Run Simulation
 ./run_sim.sh
+
