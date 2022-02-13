@@ -1,0 +1,39 @@
+#include "cache.h"
+#include "sisb.h"
+#define DEGREE 1
+#include <iostream>
+#include <fstream>
+//ofstream myfile;
+
+void CACHE::llc_prefetcher_initialize() 
+{
+ //   myfile.open ("sisb_file.txt");
+    sisb_prefetcher_initialize();
+}
+
+uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id, uint64_t curr_cycle)
+{
+//    uint64_t sisb_candidates_out;
+    if(instr_id == 0)
+        return metadata_in;
+    vector<uint64_t> sisb_candidates;
+    sisb_prefetcher_operate(addr, ip, cache_hit, type, DEGREE, sisb_candidates);
+    for(uint32_t i=0; i<sisb_candidates.size(); i++){
+        prefetch_line(ip, addr, sisb_candidates[i], FILL_LLC, 0);
+//        sisb_candidates_out=sisb_candidates[i];
+//        myfile << dec<<instr_id << " " <<hex<<sisb_candidates_out<<endl;
+}
+    return metadata_in;
+}
+
+uint32_t CACHE::llc_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr, uint32_t metadata_in)
+{
+    sisb_prefetcher_cache_fill(addr, set, way, prefetch, evicted_addr);
+    return metadata_in;
+}
+
+void CACHE::llc_prefetcher_final_stats()
+{
+    sisb_prefetcher_final_stats();
+//    myfile.close();
+}

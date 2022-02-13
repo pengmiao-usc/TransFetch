@@ -1,0 +1,25 @@
+#include "cache.h"
+
+void CACHE::llc_prefetcher_initialize() 
+{
+
+}
+
+uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id, uint64_t curr_cycle)
+{
+  assert(type != PREFETCH); // The instr_id is currently set to 0 for all prefetches
+  if(instr_id == 0)  return metadata_in; //The instr_id is also set to 0 for I-cache misses and TLB misses, and we do not want to capture these right now
+
+  cout << instr_id << ", " << curr_cycle << ", " << hex << addr << ", " << ip << dec << ", " << (int)cache_hit << endl;
+  return metadata_in;
+}
+
+uint32_t CACHE::llc_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr, uint32_t metadata_in)
+{
+  return metadata_in;
+}
+
+void CACHE::llc_prefetcher_final_stats()
+{
+
+}

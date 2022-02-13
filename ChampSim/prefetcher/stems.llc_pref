@@ -1,0 +1,85 @@
+/*
+ * This file serves as the interface between the ChampSim cache system and the
+ * object-oriented implementation of STeMS. See the "stems" directory for the
+ * actual implementation and all supporting files.
+ *
+ * The reason this file exists is to expose the STeMS prefetcher as an option
+ * in the build_champsim.sh script and also provide greater modularity in the
+ * actual stems_prefetcher code.
+ *
+ * Implementation author: Arka Majumdar
+ */
+
+#include "stems/stems.h"
+
+#include "cache.h"
+#include <iostream>
+#include <fstream>
+#define DEGREE 1
+
+using namespace std;
+using namespace stems;
+ofstream myfile;
+
+/*
+ * Create an anonymous namespace so there are no naming conflicts between
+ * "g_prefetcher_for_cpu" and any other
+ */
+namespace {
+/*
+ * Maintain one stems_prefetcher per CPU.
+ */
+stems_prefetcher* g_prefetcher_for_cpu[NUM_CPUS];
+}
+
+void CACHE::llc_prefetcher_initialize() {
+    myfile.open ("stems_file.txt");
+    // No good place to delete this without modifying the CACHE destructor specifically for STeMS.
+    // Lifetime is the end of the program and will be deallocated anyway when the program ends, so do not delete explicitly.
+    g_prefetcher_for_cpu[cpu] = new stems_prefetcher(this);
+    cout << "CPU " << cpu << " L1D STeMS prefetcher" << endl;
+}
+
+uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id, uint64_t curr_cycle) {
+    vector<uint64_t> candidates;
+    g_prefetcher_for_cpu[cpu]->operate(addr, ip, cache_hit == 1, type, DEGREE, candidates);
+    //prefetch_line(ip, addr, pf_addr, FILL_LLC, 0);
+    uint64_t out;
+    for(uint32_t i=0; i<candidates.size(); i++){
+        prefetch_line(ip, addr, candidates[i], FILL_LLC, 0);
+        out=candidates[i];
+       // cout<<out<<endl;
+        myfile << dec<<instr_id << " " <<hex<<out<<endl;
+        }
+    return metadata_in;
+}
+
+uint32_t CACHE::llc_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way,
+        uint8_t prefetch, uint64_t evicted_addr,uint32_t metadata_in){
+    /*
+     * Operation unsupported. Do nothing.
+     */
+     return metadata_in;
+}
+
+void CACHE::llc_prefetcher_final_stats() {
+    cout << "===L1D PREFETCHER FINAL STATS===" << endl;
+    for (const pair<string, long long>& pair : g_prefetcher_for_cpu[cpu]->stats()) {
+        cout << pair.first << "=" << pair.second << endl;
+    }
+    cout << "===END L1D PREFETCHER FINAL STATS===" << endl;
+    myfile.close();
+}
+/*
+void CACHE::inform_eviction(uint64_t address) {
+    g_prefetcher_for_cpu[cpu]->inform_eviction(address);
+}
+
+bool CACHE::access_svb(uint8_t type, PACKET* packet) {
+    return g_prefetcher_for_cpu[cpu]->access_svb(type, packet);
+}
+
+void CACHE::fill_svb(PACKET* packet) {
+    g_prefetcher_for_cpu[cpu]->fill_svb(packet);
+}
+*/

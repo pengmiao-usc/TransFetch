@@ -1,0 +1,75 @@
+#include "cache.h"
+#include "bo.h"
+#include "sisb.h"
+#include <unordered_map>
+#include <set>
+
+#define DEGREE 2
+
+void CACHE::llc_prefetcher_initialize() 
+{
+    sisb_prefetcher_initialize();
+    bo_prefetcher_initialize();
+}
+
+uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id, uint64_t curr_cycle)
+{
+    if(instr_id == 0)
+        return metadata_in;
+
+    vector<uint64_t> sisb_candidates;
+    sisb_prefetcher_operate(addr, ip, cache_hit, type, DEGREE, sisb_candidates);
+    vector<uint64_t> bo_candidates;
+    bo_prefetcher_operate(addr, ip, cache_hit, type, get_set(addr), get_way(addr, get_set(addr)), DEGREE, bo_candidates);
+
+    uint32_t issued = 0;
+    uint32_t i_bo = 0;
+    uint32_t i_sisb = 0;
+    set<uint64_t> already_issued;
+    while((i_sisb < sisb_candidates.size()) || (i_bo < bo_candidates.size()))
+    {
+        if(i_sisb < sisb_candidates.size())
+        {
+            if(already_issued.find(sisb_candidates[i_sisb]) == already_issued.end()) 
+                if(prefetch_line(ip, addr, sisb_candidates[i_sisb], FILL_LLC, 0))
+                {
+                    issued++;
+                    already_issued.insert(sisb_candidates[i_sisb]);
+                }
+
+            i_sisb++;
+        }
+
+        if(issued >= DEGREE)
+            break;
+
+        if(i_bo < bo_candidates.size())
+        {
+            if(already_issued.find(bo_candidates[i_bo]) == already_issued.end()) 
+                if(prefetch_line(ip, addr, bo_candidates[i_bo++], FILL_LLC, 0))
+                {
+                    issued++;
+                    already_issued.insert(bo_candidates[i_bo]);
+                }
+
+            i_bo++;
+        }
+        if(issued >= DEGREE)
+            break;
+    }
+
+    return metadata_in;
+}
+
+uint32_t CACHE::llc_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr, uint32_t metadata_in)
+{
+    bo_prefetcher_cache_fill(addr, set, way, prefetch, evicted_addr);
+    sisb_prefetcher_cache_fill(addr, set, way, prefetch, evicted_addr);
+    return 0;
+}
+
+void CACHE::llc_prefetcher_final_stats()
+{
+    bo_prefetcher_final_stats();
+    sisb_prefetcher_final_stats();
+}

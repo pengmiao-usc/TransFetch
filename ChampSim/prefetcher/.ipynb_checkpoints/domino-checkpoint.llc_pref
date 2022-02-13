@@ -1,0 +1,198 @@
+#include <stdio.h>
+#include "cache.h"
+#include <map>
+#include <set>
+#include <cassert>
+#include <set>
+#define DEGREE 1
+#include <iostream>
+#include <fstream>
+//ofstream myfile;
+unsigned int total_access;
+unsigned int predictions;
+unsigned int no_prediction;
+uint64_t addr_context[2];
+uint64_t pointer;
+
+//#define HYBRID
+
+struct EIT_Entry
+{
+    map<uint64_t, uint64_t> address_pointer_pair;
+    map<uint64_t, uint64_t> access_time;
+    uint64_t timer;
+    uint64_t most_recent_addr;
+
+    EIT_Entry()
+    {
+        timer = 0;  
+        most_recent_addr = 0;
+        address_pointer_pair.clear();
+        access_time.clear();
+    }
+
+    uint64_t get_ghb_pointer(uint64_t curr_addr)
+    {
+        if(address_pointer_pair.find(curr_addr) != address_pointer_pair.end())
+            return address_pointer_pair[curr_addr];
+    
+        assert(address_pointer_pair.find(most_recent_addr) != address_pointer_pair.end());
+        return address_pointer_pair[most_recent_addr];
+    }
+
+    void remove_oldest()
+    {
+        uint64_t oldest = timer+1;
+        uint64_t replace_addr;
+        for(map<uint64_t, uint64_t>::iterator it=access_time.begin(); it != access_time.end(); it++)
+        {
+            if(it->second < oldest)
+            {
+                oldest = it->second;
+                replace_addr = it->first;
+            }
+        }
+        assert(oldest < (timer+1));
+        assert(address_pointer_pair.find(replace_addr) != address_pointer_pair.end());
+        address_pointer_pair.erase(replace_addr);
+        access_time.erase(replace_addr);
+    }
+
+    void update(uint64_t curr_addr, uint64_t pointer)
+    {
+        timer++;
+#ifdef EIT_ENTRY_LIMIT
+        if(address_pointer_pair.find(curr_addr) == address_pointer_pair.end())
+            if(address_pointer_pair.size() >= 3)
+                remove_oldest();
+       
+        assert(address_pointer_pair.size() <= 3); 
+        assert(access_time.size() <= 3); 
+#endif
+        address_pointer_pair[curr_addr] = pointer;
+        access_time[curr_addr] = timer;
+        most_recent_addr = curr_addr;
+    }
+};
+
+struct Domino_prefetcher_t
+{
+    vector<uint64_t> GHB;
+    map<uint64_t, EIT_Entry> index_table;
+    uint64_t last_address;
+
+    void domino_train(uint64_t curr_addr, uint64_t last_addr)
+    {
+        GHB.push_back(curr_addr);
+        assert(GHB.size() >= 1);
+
+        index_table[last_addr].update(curr_addr, (GHB.size() - 1));
+    }
+
+    vector<uint64_t> domino_predict(uint64_t curr_addr, uint64_t last_addr)
+    {
+        vector<uint64_t> candidates;
+        candidates.clear();
+
+        if(index_table.find(last_addr) != index_table.end())
+        {
+            uint64_t index = index_table[last_addr].get_ghb_pointer(curr_addr);
+
+            for(unsigned int i=1; i<=32; i++)
+            {
+                if((index+i) >= GHB.size())
+                    break;
+                uint64_t candidate_phy_addr = GHB[index+i];
+                candidates.push_back(candidate_phy_addr);
+            }
+        }
+        else
+            no_prediction++;
+
+        return candidates;
+    }
+
+    public :
+    Domino_prefetcher_t()
+    {
+        last_address = 0;
+        GHB.clear();
+        index_table.clear();
+    }
+};
+
+Domino_prefetcher_t domino[NUM_CPUS];
+
+
+void CACHE::llc_prefetcher_initialize()
+{
+    total_access = 0;
+    predictions = 0;
+    no_prediction = 0;
+ //   myfile.open ("domino_file.txt");
+
+}
+
+uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in,uint64_t instr_id, uint64_t curr_cycle)
+{
+    if (type != LOAD)
+        return metadata_in;
+
+//    if(cache_hit)
+//        return metadata_in;
+
+    uint64_t addr_B = (addr >> 6) << 6;
+
+    if(addr_B == domino[cpu].last_address)
+        return metadata_in;
+
+    total_access++;
+
+    //Predict before training
+    vector<uint64_t> candidates = domino[cpu].domino_predict(addr_B, domino[cpu].last_address);
+
+    int num_prefetched = 0;
+    uint64_t candidates_out;
+    for(unsigned int i=0; i<candidates.size(); i++)
+    {
+        candidates_out=candidates[i];
+        if(instr_id>0){
+            int ret = prefetch_line(ip, addr, candidates[i], FILL_LLC, 0);
+ //           myfile << dec<<instr_id << " " <<hex<<candidates_out<<endl;
+        //if (ret == 1)
+        //{
+            predictions++;
+            num_prefetched++;
+        }
+        
+        //}
+        if(num_prefetched >= DEGREE)
+            break;
+    }
+
+    domino[cpu].domino_train(addr_B, domino[cpu].last_address);
+    
+    domino[cpu].last_address = addr_B;
+
+    return metadata_in;
+}
+
+uint32_t CACHE::llc_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr,uint32_t metadata_in)
+{
+    return metadata_in;
+}
+
+void CACHE::llc_prefetcher_final_stats() 
+{
+ //   myfile.close();
+/*
+  printf("Prefetcher final stats\n");
+    cout << "Index Table Size: " << domino[cpu].index_table.size() << endl;
+    cout << "GHB size: " << domino[cpu].GHB.size() << endl;;
+    cout << endl << endl;
+    cout << "Triggers: " << total_access << endl;
+    cout << "No Prediction: " << no_prediction << " " << 100*(double)no_prediction/(double)total_access << endl;
+    cout << "Predictions: " << predictions << " " << 100*(double)predictions/(double)total_access << endl;
+    cout << endl << endl;
+    */
+}

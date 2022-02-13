@@ -1,0 +1,61 @@
+#include "ooo_cpu.h"
+#include "cache.h"
+
+#include <cstdlib>
+#include <fstream>
+#include <limits>
+#include <unordered_map>
+#include <vector>
+
+#define MAX_PREFETCH_DEGREE 16
+
+unordered_map<uint64_t, vector<uint64_t>> prefetches;
+
+void CACHE::llc_prefetcher_initialize() 
+{
+    cout << "CPU " << cpu << " LLC from_file prefetcher" << endl;
+
+    uint64_t line_no = 0;
+    uint64_t instr_id, addr;
+
+    while(cin >> dec >> instr_id >> hex >> addr) {
+        auto itr = prefetches.find(instr_id);
+        if (itr == prefetches.end()) {
+            prefetches[instr_id] = vector<uint64_t>();
+            prefetches[instr_id].push_back(addr);
+        } else {
+            if (prefetches[instr_id].size() < MAX_PREFETCH_DEGREE) {
+                prefetches[instr_id].push_back(addr);
+            } else {
+                cerr << "Exceeded max prefetch degree of " << MAX_PREFETCH_DEGREE << " on line " << line_no << " for instr_id " << instr_id << endl;
+            }
+        }
+        line_no++;
+    }
+
+}
+
+uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id, uint64_t curr_cycle)
+{
+    if(instr_id == 0)  return metadata_in; //No prefetches for instructions with id 0 (prefetches and code misses)
+
+    auto itr = prefetches.find(instr_id);
+    if (itr != prefetches.end()) {
+        for(auto prefetch_addr : itr->second) {
+            // cout << "Prefetch " << hex << prefetch_addr << dec << " for instr_id " << instr_id << endl;
+            prefetch_line(ip, addr, prefetch_addr, FILL_LLC, 0);
+        }
+    }
+
+    return metadata_in;
+}
+
+uint32_t CACHE::llc_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr, uint32_t metadata_in)
+{
+  return metadata_in;
+}
+
+void CACHE::llc_prefetcher_final_stats()
+{
+    cout << "CPU " << cpu << " LLC from file prefetcher final stats" << endl;
+}
