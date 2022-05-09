@@ -1,5 +1,23 @@
 # TransFetch
 This repo contains code accompaning the manuscript "Fine-Grained Address Segmentation for Attention-Based Variable-Degree Prefetching"
+```
+@inproceedings{10.1145/3528416.3530236,
+author = {Zhang, Pengmiao and Srivastava, Ajitesh and Nori, Anant V. and Kannan, Rajgopal and Prasanna, Viktor K.},
+title = {Fine-Grained Address Segmentation for Attention-Based Variable-Degree Prefetching},
+year = {2022},
+isbn = {9781450393386},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3528416.3530236},
+doi = {10.1145/3528416.3530236},
+booktitle = {Proceedings of the 19th ACM International Conference on Computing Frontiers},
+pages = {103–112},
+numpages = {10},
+keywords = {address segmentation, prefetching, machine learning, attention},
+location = {Turin, Italy},
+series = {CF '22}
+}
+```
 
 ## Dependencies
 
