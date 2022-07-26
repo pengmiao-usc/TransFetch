@@ -3,7 +3,7 @@ from sklearn.metrics import precision_recall_curve
 from numpy import sqrt
 from numpy import argmax
 import config as cf
-from numpy import argmax
+from numpy import nanargmax
 import numpy as np
 
 BITMAP_SIZE=cf.BITMAP_SIZE
@@ -58,7 +58,7 @@ def threshold_throttleing(test_df,throttle_type="f1",optimal_type="micro",topk=2
             roc_auc[i] = auc(fpr[i],tpr[i])
             #best:
             gmeans[i] = sqrt(tpr[i]*(1-fpr[i]))
-            ix[i]=argmax(gmeans[i])
+            ix[i]=nanargmax(gmeans[i])
             best_threshold_list.append(threshold[i][ix[i]])
             #print('Dimension: i=%d, Best threshold=%f, G-Mean=%.3f' %(i, threshold[i][ix[i]], gmeans[i][ix[i]]))
         if optimal_type=="indiv":
@@ -70,7 +70,7 @@ def threshold_throttleing(test_df,throttle_type="f1",optimal_type="micro",topk=2
             roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
             #best:
             gmeans["micro"] = sqrt(tpr["micro"]*(1-fpr["micro"]))
-            ix["micro"]=argmax(gmeans["micro"])
+            ix["micro"]=nanargmax(gmeans["micro"])
             best_threshold=threshold["micro"][ix["micro"]]
             print('Best micro threshold=%f, G-Mean=%.3f' %(best_threshold, gmeans["micro"][ix["micro"]]))
             
@@ -88,7 +88,7 @@ def threshold_throttleing(test_df,throttle_type="f1",optimal_type="micro",topk=2
         
         p["micro"], r["micro"], threshold["micro"]=precision_recall_curve(y_real.ravel(),y_score.ravel())
         fscore["micro"] = (2 * p["micro"] * r["micro"]) / (p["micro"] + r["micro"])
-        ix["micro"]=argmax(fscore["micro"])
+        ix["micro"]=nanargmax(fscore["micro"])
         best_threshold=threshold["micro"][ix["micro"]]
         print('Best micro threshold=%f, fscore=%.3f' %(best_threshold, fscore["micro"][ix["micro"]]))
         y_pred_bin = (y_score-best_threshold >0)*1
